@@ -1,0 +1,2 @@
+[global.databases]
+sqlite_game = { url = "data.sqlite" }
