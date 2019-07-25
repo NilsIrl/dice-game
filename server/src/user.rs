@@ -8,16 +8,16 @@ use rocket::http::Status;
 
 use serde::Serialize;
 
-#[derive(FromForm, Debug)]
+#[derive(FromForm)]
 pub struct User {
     pub username: String,
     pub hashed_password: String,
 }
 
-#[derive(Serialize, Debug)]
-pub struct LeaderboardRow {
+#[derive(Serialize)]
+pub struct LeaderboardEntry {
     pub username: String,
-    pub score: u32,
+    pub score: i64,
 }
 
 impl User {
@@ -40,15 +40,16 @@ impl User {
         .unwrap();
     }
 
-    pub fn get_leaderboard(n: u32, conn: &Connection) -> Json<Vec<LeaderboardRow>> {
+    pub fn get_leaderboard(n: u32, conn: &Connection) -> Json<Vec<LeaderboardEntry>> {
         let mut statement = conn
             .prepare("SELECT username, score FROM users ORDER BY score DESC LIMIT ?1")
             .unwrap();
         let rows = statement
-            .query_map(&[&n], |row| LeaderboardRow {
+            .query_map(&[&n], |row| {
+                       LeaderboardEntry {
                 username: row.get(0),
                 score: row.get(1),
-            })
+            }})
             .unwrap();
         Json(rows.flatten().collect())
     }
