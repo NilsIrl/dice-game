@@ -8,6 +8,9 @@ mod user;
 
 fn main() {
     let stdscr = pancurses::initscr();
+    if pancurses::has_colors() {
+        pancurses::start_color();
+    }
     pancurses::curs_set(0);
     pancurses::noecho();
     let choices = ["Sign up", "Sign in", "Leaderboard", "About", "Quit"];
@@ -43,6 +46,10 @@ fn leaderboard(stdscr: &Window) {
 }
 
 fn signup(stdscr: &Window) {
+    const RED: i16 = 1;
+    const GREEN: i16 = 2;
+    pancurses::init_pair(RED, pancurses::COLOR_RED, pancurses::COLOR_BLACK);
+    pancurses::init_pair(GREEN, pancurses::COLOR_GREEN, pancurses::COLOR_BLACK);
     pancurses::curs_set(1);
     const MENU_WIDTH: i32 = 20;
     const MENU_LENGTH: i32 = 40;
@@ -78,13 +85,16 @@ fn signup(stdscr: &Window) {
     password.keypad(true);
     username.mv(1, 1);
     password.mv(1, 1);
-    password.noutrefresh();
-    menu.noutrefresh();
-    username.noutrefresh();
-    pancurses::doupdate();
     let mut userdetail = user::User::new();
     let mut username_selected = true;
     loop {
+        menu.noutrefresh();
+        if username_selected {
+            username.noutrefresh();
+        } else {
+            password.noutrefresh();
+        }
+        pancurses::doupdate();
         if username_selected {
             match username.getch().unwrap() {
                 Input::Character('\n') => {}
@@ -96,8 +106,10 @@ fn signup(stdscr: &Window) {
                 Input::Character('\t') => {
                     username_selected = !username_selected;
                     if user::User::user_exists(&userdetail.username) {
+                        menu.color_set(RED);
                         menu.mvaddstr(9, (40 - 30) / 2, "Username unavailable");
                     } else {
+                        menu.color_set(GREEN);
                         menu.mvaddstr(9, (40 - 30) / 2, "Username available  ");
                     }
                 }
@@ -125,13 +137,7 @@ fn signup(stdscr: &Window) {
             }
         }
         username.mvaddstr(1, 1, &userdetail.username);
-        password.mvaddstr(1, 1, &userdetail.password);
-        if username_selected {
-            username.noutrefresh();
-        } else {
-            password.noutrefresh();
-        }
-        pancurses::doupdate();
+        password.mvaddstr(1, 1, "*".repeat(userdetail.password.len()));
     }
 }
 
