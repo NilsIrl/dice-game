@@ -27,7 +27,7 @@ fn delete_user(user: LenientForm<user::User>, conn: SqliteGameConn) {
 
 #[get("/user?<n>")]
 fn get_user(n: u32, conn: SqliteGameConn) -> Json<std::vec::Vec<user::LeaderboardRow>> {
-    user::User::get_leaderboard(n, &*conn)
+    Json(user::User::get_leaderboard(n, &*conn))
 }
 
 #[get("/user/<name>")]

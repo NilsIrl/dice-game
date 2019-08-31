@@ -2,7 +2,6 @@ extern crate serde;
 extern crate serde_json;
 
 use rocket_contrib::databases::rusqlite::Connection;
-use rocket_contrib::json::Json;
 
 use rocket::http::Status;
 
@@ -40,7 +39,7 @@ impl User {
         .unwrap();
     }
 
-    pub fn get_leaderboard(n: u32, conn: &Connection) -> Json<Vec<LeaderboardRow>> {
+    pub fn get_leaderboard(n: u32, conn: &Connection) -> Vec<LeaderboardRow> {
         let mut statement = conn
             .prepare("SELECT username, score FROM users ORDER BY score DESC LIMIT ?1")
             .unwrap();
@@ -50,7 +49,7 @@ impl User {
                 score: row.get(1),
             })
             .unwrap();
-        Json(rows.flatten().collect())
+        rows.flatten().collect()
     }
     pub fn user_exists(username: String, conn: &Connection) -> bool {
         conn.query_row(
