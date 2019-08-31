@@ -1,4 +1,3 @@
-extern crate pancurses;
 
 use pancurses::Input;
 use pancurses::Window;
@@ -7,62 +6,51 @@ use pancurses::A_REVERSE;
 
 mod user;
 
-struct Status {
-    window: Window,
-    logged_in: bool,
-}
-
-impl Status {
-    fn new(stdscr: &Window, logged_in: bool) -> Status {
-        const STATUS_LENGTH: i32 = 50;
-        let mut status = Status {
-            window: stdscr
-                .subwin(3, STATUS_LENGTH, 0, stdscr.get_max_x() - STATUS_LENGTH)
-                .unwrap(),
-            logged_in: logged_in,
-        };
-        status.set_status(logged_in);
-        status
-    }
-    fn set_status(&mut self, logged_in: bool) {
-        self.logged_in = logged_in;
-        self.window.clear();
-        self.window.draw_box(0, 0);
-        self.window.mvaddstr(
-            1,
-            1,
-            if self.logged_in {
-                "logged_in: username"
-            } else {
-                "logged out"
-            },
-        );
-        self.window.refresh();
-    }
-    fn get_status(&self) -> bool {
-        self.logged_in
-    }
-}
-
 fn main() {
     let stdscr = pancurses::initscr();
+    if pancurses::has_colors() {
+        pancurses::start_color();
+    }
     pancurses::curs_set(0);
     pancurses::noecho();
-    let _status_bar = Status::new(&stdscr, false);
     let choices = ["Sign up", "Sign in", "Leaderboard", "About", "Quit"];
-    match main_menu(&stdscr, &choices) {
-        0 => signup(&stdscr),
-        1 => signin(),
-        2 => leaderboard(),
-        3 => about(),
-        _ => (),
+    loop {
+        match main_menu(&stdscr, &choices) {
+            0 => signup(&stdscr),
+            1 => signin(),
+            2 => leaderboard(&stdscr),
+            3 => about(),
+            _ => break,
+        }
     }
     pancurses::endwin();
 }
 
-fn leaderboard() {}
+fn leaderboard(stdscr: &Window) {
+    pancurses::curs_set(0);
+    const MENU_WIDTH: i32 = 20;
+    const MENU_LENGTH: i32 = 40;
+    let menu = pancurses::newwin(
+        MENU_WIDTH,
+        MENU_LENGTH,
+        (stdscr.get_max_y() - MENU_WIDTH) / 2,
+        (stdscr.get_max_x() - MENU_LENGTH) / 2,
+    );
+    let players = user::User::leaderboard(10);
+    menu.addstr("\n");
+    for (i, player) in players.iter().enumerate() {
+        menu.addstr(format!(" {}. {}: {}\n", i, player.username, player.score)); // TODO: leaderboard starts at 0 or 1
+    }
+    menu.draw_box(0, 0);
+    menu.getch();
+}
 
 fn signup(stdscr: &Window) {
+    const RED: i16 = 1;
+    const GREEN: i16 = 2;
+    pancurses::init_pair(RED, pancurses::COLOR_RED, pancurses::COLOR_BLACK);
+    pancurses::init_pair(GREEN, pancurses::COLOR_GREEN, pancurses::COLOR_BLACK);
+    pancurses::curs_set(1);
     const MENU_WIDTH: i32 = 20;
     const MENU_LENGTH: i32 = 40;
     let menu = pancurses::newwin(
@@ -97,13 +85,16 @@ fn signup(stdscr: &Window) {
     password.keypad(true);
     username.mv(1, 1);
     password.mv(1, 1);
-    password.noutrefresh();
-    menu.noutrefresh();
-    username.noutrefresh();
-    pancurses::doupdate();
     let mut userdetail = user::User::new();
     let mut username_selected = true;
     loop {
+        menu.noutrefresh();
+        if username_selected {
+            username.noutrefresh();
+        } else {
+            password.noutrefresh();
+        }
+        pancurses::doupdate();
         if username_selected {
             match username.getch().unwrap() {
                 Input::Character('\n') => {}
@@ -115,8 +106,10 @@ fn signup(stdscr: &Window) {
                 Input::Character('\t') => {
                     username_selected = !username_selected;
                     if user::User::user_exists(&userdetail.username) {
+                        menu.color_set(RED);
                         menu.mvaddstr(9, (40 - 30) / 2, "Username unavailable");
                     } else {
+                        menu.color_set(GREEN);
                         menu.mvaddstr(9, (40 - 30) / 2, "Username available  ");
                     }
                 }
@@ -144,13 +137,7 @@ fn signup(stdscr: &Window) {
             }
         }
         username.mvaddstr(1, 1, &userdetail.username);
-        password.mvaddstr(1, 1, &userdetail.password);
-        if username_selected {
-            username.noutrefresh();
-        } else {
-            password.noutrefresh();
-        }
-        pancurses::doupdate();
+        password.mvaddstr(1, 1, "*".repeat(userdetail.password.len()));
     }
 }
 
@@ -199,6 +186,9 @@ fn main_menu(stdscr: &Window, choices: &[&str]) -> usize {
             Input::Character('\n') | Input::Character('l') => {
                 menu.delwin();
                 return chosen;
+            }
+            Input::Character('q') => {
+                return 9999; // Any number that isn't chosen works
             }
             _ => (),
         }

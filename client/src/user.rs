@@ -1,12 +1,15 @@
-extern crate hex;
-extern crate reqwest;
-extern crate sha3;
-
+use serde::Deserialize;
 use sha3::{Digest, Sha3_512};
 
 pub struct User {
     pub username: String,
     pub password: String,
+}
+
+#[derive(Deserialize)]
+pub struct LeaderboardEntry {
+    pub username: String,
+    pub score: u64,
 }
 
 #[cfg(test)]
@@ -73,6 +76,13 @@ impl User {
     }
     pub fn user_exists(username: &String) -> bool {
         reqwest::get(format!("http://localhost:8000/user/{}", username).as_str())
+            .unwrap()
+            .json()
+            .unwrap()
+    }
+
+    pub fn leaderboard(n: usize) -> Vec<LeaderboardEntry> {
+        reqwest::get(format!("http://localhost:8000/user?n={}", n).as_str())
             .unwrap()
             .json()
             .unwrap()
