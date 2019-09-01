@@ -1,8 +1,13 @@
 
 use pancurses::Input;
 use pancurses::Window;
-
 use pancurses::A_REVERSE;
+
+struct UserCredentials {
+    username: String,
+    password_crypt: String,
+    logged_in: bool,
+}
 
 mod user;
 

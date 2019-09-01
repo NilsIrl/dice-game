@@ -1,2 +1,2 @@
 [global.databases]
-sqlite_game = { url = "data.sqlite" }
+game = { url = "postgres://postgres:postgres@localhost/game" }
