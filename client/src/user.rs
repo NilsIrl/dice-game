@@ -60,7 +60,7 @@ impl User {
             .post("http://localhost:8000/user")
             .form(&[
                 ("username", &self.username),
-                ("hashed_password", &hex::encode(hasher.result())),
+                ("password_crypt", &hex::encode(hasher.result())),
             ])
             .send()
         {

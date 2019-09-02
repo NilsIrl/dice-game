@@ -68,9 +68,9 @@ fn user_exists(name: String, conn: GameDbConn) -> Json<bool> {
         schema::users::table
             .filter(schema::users::username.eq(name))
             .count()
-            .execute(&*conn)
+            .get_result::<i64>(&*conn)
             .unwrap()
-            == 0,
+            >= 1,
     )
 }
 
