@@ -13,17 +13,32 @@ fn main() {
     pancurses::noecho();
     let disconnected_choices = ["Sign up", "Sign in", "Leaderboard", "About", "Quit"];
     let loggedin_choices = ["Play", "Leaderboard", "Disconnect", "Quit"];
-    let mut credentials = None;
+    let play_menu = ["Create Game", "Join Game", "Back"];
+    let mut credentials: Option<user::User> = None;
 
     loop {
         match credentials {
-            Some(_) => match main_menu(&stdscr, &loggedin_choices) {
-                0 => (),
+            Some(_) => match main_menu(
+                &stdscr,
+                &format!("User: {}", credentials.as_ref().unwrap().username),
+                &loggedin_choices,
+            ) {
+                0 => loop {
+                    match main_menu(&stdscr, "", &play_menu) {
+                        0 => {
+                            let game_id = credentials.as_ref().unwrap().create_game();
+                        }
+                        1 => {
+                            
+                        },
+                        _ => break,
+                    }
+                },
                 1 => leaderboard(&stdscr),
                 2 => credentials = None,
                 _ => break,
             },
-            None => match main_menu(&stdscr, &disconnected_choices) {
+            None => match main_menu(&stdscr, "Main Menu", &disconnected_choices) {
                 0 => signup(&stdscr, &mut credentials),
                 1 => signin(&stdscr, &mut credentials),
                 2 => leaderboard(&stdscr),
@@ -69,25 +84,28 @@ fn signup(stdscr: &Window, credentials: &mut Option<user::User>) {
 }
 
 fn signin(stdscr: &Window, credentials: &mut Option<user::User>) {
-    *credentials = Some(ask_credentials(stdscr, false));
+    loop {
+        *credentials = Some(ask_credentials(stdscr, false));
+        if credentials.as_ref().unwrap().authenticate() {
+            break;
+        }
+    }
 }
 
 fn about() {}
 
-fn main_menu(stdscr: &Window, choices: &[&str]) -> usize {
+fn main_menu(stdscr: &Window, title: &str, choices: &[&str]) -> usize {
     const LENGTH: i32 = 40;
     const WIDTH: i32 = 20;
-    let menu = stdscr
-        .subwin(
-            WIDTH,
-            LENGTH,
-            (stdscr.get_max_y() - WIDTH) / 2,
-            (stdscr.get_max_x() - LENGTH) / 2,
-        )
-        .unwrap();
+    let menu = pancurses::newwin(
+        WIDTH,
+        LENGTH,
+        (stdscr.get_max_y() - WIDTH) / 2,
+        (stdscr.get_max_x() - LENGTH) / 2,
+    );
     menu.draw_box(0, 0);
     menu.keypad(true);
-    menu.mvaddstr(0, 3, "Main menu");
+    menu.mvaddstr(0, 3, title);
     let mut chosen = 0;
     loop {
         for y in 0..choices.len() {
@@ -121,7 +139,6 @@ fn main_menu(stdscr: &Window, choices: &[&str]) -> usize {
             }
             _ => (),
         }
-        menu.refresh();
     }
 }
 
@@ -192,7 +209,7 @@ fn ask_credentials(stdscr: &Window, signup: bool) -> user::User {
                 }
             }
             Input::Character('\t') => {
-                if username_selected {
+                if username_selected && signup {
                     if user::User::user_exists(&userdetail.username) {
                         menu.color_set(RED);
                         menu.mvaddstr(9, (40 - 30) / 2, "Username unavailable");
@@ -213,6 +230,9 @@ fn ask_credentials(stdscr: &Window, signup: bool) -> user::User {
             _ => (),
         }
     }
+    username.delwin();
+    password.delwin();
+    menu.delwin();
     pancurses::curs_set(0);
     userdetail
 }

@@ -57,11 +57,8 @@ impl User {
         let mut hasher = Sha3_512::new();
         hasher.input(&self.password);
         match reqwest::Client::new()
-            .post("http://localhost:8000/user")
-            .form(&[
-                ("username", &self.username),
-                ("password_crypt", &hex::encode(hasher.result())),
-            ])
+            .post(&format!("http://localhost:8000/users/{}", &self.username)) // TODO: make the address a constant
+            .form(&[("password_crypt", &hex::encode(&hasher.result()))])
             .send()
         {
             Ok(response) => {
@@ -74,15 +71,47 @@ impl User {
             Err(_) => Err("Couldn't connect to the internet, check your internet"),
         }
     }
-    pub fn user_exists(username: &String) -> bool {
-        reqwest::get(format!("http://localhost:8000/user/{}", username).as_str())
+
+    pub fn create_game(&self) -> i32 {
+        let mut hasher = Sha3_512::new();
+        hasher.input(&self.password);
+        reqwest::Client::new()
+            .post("http://localhost:8000/games")
+            .form(&[
+                ("username", &self.username),
+                ("password_crypt", &hex::encode(hasher.result())),
+            ])
+            .send()
+            .unwrap()
+            .json()
+            .unwrap()
+    }
+
+    pub fn authenticate(&self) -> bool {
+        let mut hasher = Sha3_512::new();
+        hasher.input(&self.password);
+        reqwest::get(
+            format!(
+                "http://localhost:8000/users/{}?password={}",
+                &self.username,
+                &hex::encode(&hasher.result())
+            )
+            .as_str(),
+        )
+        .unwrap()
+        .json()
+        .unwrap()
+    }
+
+    pub fn user_exists(username: &str) -> bool {
+        reqwest::get(format!("http://localhost:8000/users/{}", username).as_str())
             .unwrap()
             .json()
             .unwrap()
     }
 
     pub fn leaderboard(n: usize) -> Vec<LeaderboardEntry> {
-        reqwest::get(format!("http://localhost:8000/user?n={}", n).as_str())
+        reqwest::get(format!("http://localhost:8000/users?n={}", n).as_str())
             .unwrap()
             .json()
             .unwrap()

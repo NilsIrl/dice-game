@@ -7,7 +7,7 @@ stdenv.mkDerivation {
     pkgs.cargo
 	pkgs.ncurses
 	pkgs.openssl
-	pkgs.sqlite
+	pkgs.postgresql
   ];
 
   shellHook = ''
