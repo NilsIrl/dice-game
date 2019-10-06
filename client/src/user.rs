@@ -103,17 +103,11 @@ impl User {
         .unwrap()
     }
 
-    pub fn user_exists(username: &str) -> bool {
-        reqwest::get(format!("http://localhost:8000/users/{}", username).as_str())
-            .unwrap()
-            .json()
-            .unwrap()
+    pub fn user_exists(username: &str) -> Result<bool, reqwest::Error> {
+        reqwest::get(&format!("http://localhost:8000/users/{}", username))?.json()
     }
 
-    pub fn leaderboard(n: usize) -> Vec<LeaderboardEntry> {
-        reqwest::get(format!("http://localhost:8000/users?n={}", n).as_str())
-            .unwrap()
-            .json()
-            .unwrap()
+    pub fn leaderboard(n: usize) -> Result<Vec<LeaderboardEntry>, reqwest::Error> {
+        reqwest::get(&format!("http://localhost:8000/users?n={}", n))?.json()
     }
 }

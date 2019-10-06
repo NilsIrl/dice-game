@@ -28,9 +28,7 @@ fn main() {
                         0 => {
                             let game_id = credentials.as_ref().unwrap().create_game();
                         }
-                        1 => {
-                            
-                        },
+                        1 => {}
                         _ => break,
                     }
                 },
@@ -60,13 +58,21 @@ fn leaderboard(stdscr: &Window) {
         (stdscr.get_max_y() - MENU_WIDTH) / 2,
         (stdscr.get_max_x() - MENU_LENGTH) / 2,
     );
-    let players = user::User::leaderboard(10);
-    menu.addstr("\n");
-    for (i, player) in players.iter().enumerate() {
-        menu.addstr(format!(" {}. {}: {}\n", i, player.username, player.score));
-        // TODO: leaderboard starts at 0 or 1
-    }
     menu.draw_box(0, 0);
+    if let Ok(players) = user::User::leaderboard(10) {
+        menu.addstr("Leaderboard");
+        for (i, player) in players.iter().enumerate() {
+            menu.mvaddstr(
+                i as i32,
+                1,
+                format!("{}. {}: {}\n", i, player.username, player.score),
+            );
+            // TODO: leaderboard starts at 0 or 1
+        }
+    } else {
+        menu.addstr("Servers unavailable");
+    }
+    menu.refresh();
     menu.getch();
 }
 
@@ -210,12 +216,14 @@ fn ask_credentials(stdscr: &Window, signup: bool) -> user::User {
             }
             Input::Character('\t') => {
                 if username_selected && signup {
-                    if user::User::user_exists(&userdetail.username) {
-                        menu.color_set(RED);
-                        menu.mvaddstr(9, (40 - 30) / 2, "Username unavailable");
-                    } else {
-                        menu.color_set(GREEN);
-                        menu.mvaddstr(9, (40 - 30) / 2, "Username available  ");
+                    if let Ok(exists) = user::User::user_exists(&userdetail.username) {
+                        if exists {
+                            menu.color_set(RED);
+                            menu.mvaddstr(9, (40 - 30) / 2, "Username unavailable");
+                        } else {
+                            menu.color_set(RED);
+                            menu.mvaddstr(9, (40 - 30) / 2, "Username available");
+                        }
                     }
                 }
                 username_selected = !username_selected;
