@@ -1,9 +1,12 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 
+extern crate openssl;
 #[macro_use]
 extern crate rocket;
 #[macro_use]
 extern crate rocket_contrib;
+#[macro_use]
+extern crate diesel_migrations;
 #[macro_use]
 extern crate diesel;
 
@@ -29,6 +32,8 @@ use rand::Rng;
 
 #[database("game")]
 struct GameDbConn(diesel::PgConnection);
+
+embed_migrations!();
 
 #[derive(Insertable, Queryable)]
 #[table_name = "rounds"]
@@ -223,5 +228,12 @@ fn main() {
             ],
         )
         .attach(GameDbConn::fairing())
+        .attach(rocket::fairing::AdHoc::on_attach(
+            "Database Migrations",
+            |rocket| match embedded_migrations::run(&*GameDbConn::get_one(&rocket).unwrap()) {
+                Ok(_) => Ok(rocket),
+                Err(_) => Err(rocket),
+            },
+        ))
         .launch();
 }

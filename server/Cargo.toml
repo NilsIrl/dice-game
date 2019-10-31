@@ -4,9 +4,14 @@ version = "0.1.0"
 authors = ["Nils ANDRÉ-CHANG <nils.andre.chang@gmail.com>"]
 edition = "2018"
 
+[profile.release]
+lto = true
+
 [dependencies]
+openssl = "*"
 rocket = "0.4"
 rocket_contrib = { version = "0.4", default-features = false, features = ["diesel_postgres_pool", "json"] }
 diesel = { version = "1.0.0", features = ["postgres"] }
+diesel_migrations = "1"
 serde = { version = "1", features = ["derive"] }
 rand = "0.7"

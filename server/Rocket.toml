@@ -1,2 +1,5 @@
-[global.databases]
-game = { url = "postgres://postgres:postgres@localhost/game" }
+[development.databases]
+game = { url = "postgres://postgres@localhost/dice-game" }
+
+[production.databases]
+game = { url = "postgres://postgres@postgres/dice-game" }
