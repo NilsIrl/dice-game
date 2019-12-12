@@ -1,16 +1,30 @@
-use pancurses::Input;
-use pancurses::Window;
-use pancurses::A_REVERSE;
+use pancurses::{Input, Window, A_REVERSE};
 
 mod user;
 
 fn main() {
+    use clap::Arg;
+
+    let matches = clap::App::new("Dice Game TUI client")
+        .version("0.1")
+        .author("Nils André-Chang <nils@nilsand.re>")
+        .about("TODO")
+        .arg(
+            Arg::with_name("server")
+                .takes_value(true)
+                .default_value("localhost:8000"),
+        )
+        .get_matches();
+
+    let server_connection = user::ServerConnection::new(matches.value_of("server").unwrap());
+
     let stdscr = pancurses::initscr();
     if pancurses::has_colors() {
         pancurses::start_color();
     }
     pancurses::curs_set(0);
     pancurses::noecho();
+
     let disconnected_choices = ["Sign up", "Sign in", "Leaderboard", "About", "Quit"];
     let loggedin_choices = ["Play", "Leaderboard", "Disconnect", "Quit"];
     let play_menu = ["Create Game", "Join Game", "Back"];
@@ -18,37 +32,60 @@ fn main() {
 
     loop {
         match credentials {
-            Some(_) => match main_menu(
+            Some(ref user) => match main_menu(
                 &stdscr,
-                &format!("User: {}", credentials.as_ref().unwrap().username),
+                &format!("User: {}", user.username),
                 &loggedin_choices,
             ) {
-                0 => loop {
+                Some(0) => loop {
                     match main_menu(&stdscr, "", &play_menu) {
-                        0 => {
-                            let game_id = credentials.as_ref().unwrap().create_game();
+                        Some(0) => {
+                            let game_id = server_connection.create_game(user);
                         }
-                        1 => {}
-                        _ => break,
+                        Some(1) => {
+                            let games = server_connection.get_games();
+                            main_menu(
+                                &stdscr,
+                                "Select game to join",
+                                &games
+                                    .iter()
+                                    .filter_map(|game| {
+                                        // TODO: make it so only games that aren't created by us are returned from the server
+                                        if game.player1 == user.username {
+                                            None
+                                        } else {
+                                            Some(format!(
+                                                "#{} Created by {}",
+                                                game.game_id, game.player1
+                                            ))
+                                        }
+                                    })
+                                    .collect::<Vec<_>>(),
+                            );
+                        }
+                        Some(_) => unreachable!(),
+                        None => break,
                     }
                 },
-                1 => leaderboard(&stdscr),
-                2 => credentials = None,
-                _ => break,
+                Some(1) => leaderboard(&stdscr, &server_connection),
+                Some(2) => credentials = None,
+                Some(_) => unreachable!(),
+                None => break,
             },
             None => match main_menu(&stdscr, "Main Menu", &disconnected_choices) {
-                0 => signup(&stdscr, &mut credentials),
-                1 => signin(&stdscr, &mut credentials),
-                2 => leaderboard(&stdscr),
-                3 => about(),
-                _ => break,
+                Some(0) => signup(&stdscr, &mut credentials, &server_connection),
+                Some(1) => signin(&stdscr, &mut credentials, &server_connection),
+                Some(2) => leaderboard(&stdscr, &server_connection),
+                Some(3) => about(),
+                Some(_) => unreachable!(),
+                None => break,
             },
         }
     }
     pancurses::endwin();
 }
 
-fn leaderboard(stdscr: &Window) {
+fn leaderboard(stdscr: &Window, server_connection: &user::ServerConnection) {
     pancurses::curs_set(0);
     const MENU_WIDTH: i32 = 20;
     const MENU_LENGTH: i32 = 40;
@@ -59,27 +96,32 @@ fn leaderboard(stdscr: &Window) {
         (stdscr.get_max_x() - MENU_LENGTH) / 2,
     );
     menu.draw_box(0, 0);
-    if let Ok(players) = user::User::leaderboard(10) {
-        menu.addstr("Leaderboard");
-        for (i, player) in players.iter().enumerate() {
-            menu.mvaddstr(
-                i as i32,
-                1,
-                format!("{}. {}: {}\n", i, player.username, player.score),
-            );
-            // TODO: leaderboard starts at 0 or 1
+    match server_connection.leaderboard(10) {
+        Ok(players) => {
+            menu.addstr("Leaderboard");
+            for (i, player) in players.iter().enumerate() {
+                menu.mvaddstr(
+                    i as i32 + 1,
+                    1,
+                    format!("{}. {}: {}\n", i, player.username, player.score),
+                );
+                // TODO: leaderboard starts at 0 or 1
+            }
         }
-    } else {
-        menu.addstr("Servers unavailable");
+        Err(_) => unimplemented!(),
     }
     menu.refresh();
     menu.getch();
 }
 
-fn signup(stdscr: &Window, credentials: &mut Option<user::User>) {
+fn signup(
+    stdscr: &Window,
+    credentials: &mut Option<user::User>,
+    server_connection: &user::ServerConnection,
+) {
     loop {
-        let user_creds = ask_credentials(&stdscr, true);
-        match user_creds.register() {
+        let user_creds = ask_credentials(&stdscr, true, server_connection);
+        match server_connection.register_user(&user_creds) {
             Ok(_) => {
                 *credentials = Some(user_creds);
                 break;
@@ -89,10 +131,14 @@ fn signup(stdscr: &Window, credentials: &mut Option<user::User>) {
     }
 }
 
-fn signin(stdscr: &Window, credentials: &mut Option<user::User>) {
+fn signin(
+    stdscr: &Window,
+    credentials: &mut Option<user::User>,
+    server_connection: &user::ServerConnection,
+) {
     loop {
-        *credentials = Some(ask_credentials(stdscr, false));
-        if credentials.as_ref().unwrap().authenticate() {
+        *credentials = Some(ask_credentials(stdscr, false, server_connection));
+        if server_connection.authenticate(credentials.as_ref().unwrap()) {
             break;
         }
     }
@@ -100,7 +146,11 @@ fn signin(stdscr: &Window, credentials: &mut Option<user::User>) {
 
 fn about() {}
 
-fn main_menu(stdscr: &Window, title: &str, choices: &[&str]) -> usize {
+fn main_menu<S: AsRef<str>, T: AsRef<str>>(
+    stdscr: &Window,
+    title: S,
+    choices: &[T],
+) -> Option<usize> {
     const LENGTH: i32 = 40;
     const WIDTH: i32 = 20;
     let menu = pancurses::newwin(
@@ -110,15 +160,14 @@ fn main_menu(stdscr: &Window, title: &str, choices: &[&str]) -> usize {
         (stdscr.get_max_x() - LENGTH) / 2,
     );
     menu.draw_box(0, 0);
-    menu.keypad(true);
-    menu.mvaddstr(0, 3, title);
+    menu.mvaddstr(0, 3, title); // TODO: should title be passed by reference
     let mut chosen = 0;
     loop {
         for y in 0..choices.len() {
             if y == chosen {
                 menu.attron(A_REVERSE);
             }
-            menu.mvaddstr(y as i32 + 1, 1, choices[y]);
+            menu.mvaddstr(y as i32 + 1, 1, &choices[y]);
             if y == chosen {
                 menu.attroff(A_REVERSE);
             }
@@ -138,17 +187,19 @@ fn main_menu(stdscr: &Window, title: &str, choices: &[&str]) -> usize {
             }
             Input::Character('\n') | Input::Character('l') => {
                 menu.delwin();
-                return chosen;
+                return Some(chosen);
             }
-            Input::Character('q') => {
-                return 9999; // Any number that isn't chosen works
-            }
+            Input::Character('q') => return None,
             _ => (),
         }
     }
 }
 
-fn ask_credentials(stdscr: &Window, signup: bool) -> user::User {
+fn ask_credentials(
+    stdscr: &Window,
+    signup: bool,
+    server_connection: &user::ServerConnection,
+) -> user::User {
     const RED: i16 = 1;
     const GREEN: i16 = 2;
     pancurses::init_pair(RED, pancurses::COLOR_RED, pancurses::COLOR_BLACK);
@@ -188,51 +239,61 @@ fn ask_credentials(stdscr: &Window, signup: bool) -> user::User {
         "Please enter your credentials"
     });
     menu.mvaddstr(3, 4, "Press enter when you're done.");
-    menu.keypad(true);
+    username.mv(1, 1);
+    password.mv(1, 1);
+    menu.noutrefresh();
     let mut userdetail = user::User::new();
     let mut username_selected = true;
     loop {
-        username.mvaddstr(1, 1, &userdetail.username);
-        password.mvaddstr(1, 1, "*".repeat(userdetail.password.len()));
-        menu.noutrefresh();
         if username_selected {
             username.noutrefresh();
         } else {
             password.noutrefresh();
         }
         pancurses::doupdate();
-        match menu.getch().unwrap() {
+        match if username_selected {
+            username.getch().unwrap()
+        } else {
+            password.getch().unwrap()
+        } {
             Input::Character('\n') => break,
             Input::KeyBackspace => {
                 if username_selected {
                     userdetail.username.pop();
-                    username.erase();
-                    username.draw_box(0, 0);
+                    username.delch();
+                // username.draw_box(0, 0);
                 } else {
                     userdetail.password.pop();
-                    password.erase();
-                    password.draw_box(0, 0);
+                    password.delch();
+                    // password.draw_box(0, 0);
                 }
             }
             Input::Character('\t') => {
                 if username_selected && signup {
-                    if let Ok(exists) = user::User::user_exists(&userdetail.username) {
-                        if exists {
-                            menu.color_set(RED);
-                            menu.mvaddstr(9, (40 - 30) / 2, "Username unavailable");
-                        } else {
-                            menu.color_set(RED);
-                            menu.mvaddstr(9, (40 - 30) / 2, "Username available");
+                    match server_connection.user_exists(&userdetail.username) {
+                        Ok(exists) => {
+                            if exists {
+                                menu.color_set(RED);
+                                menu.mvaddstr(9, (40 - 30) / 2, "Username unavailable");
+                            } else {
+                                menu.color_set(GREEN);
+                                // TODO: find a solution to the need of overwritting with spaces
+                                menu.mvaddstr(9, (40 - 30) / 2, "Username available  ");
+                            }
                         }
+                        Err(_) => unimplemented!(),
                     }
+                    menu.noutrefresh();
                 }
                 username_selected = !username_selected;
             }
             Input::Character(character) => {
                 if username_selected {
                     userdetail.username.push(character);
+                    username.addch(character);
                 } else {
                     userdetail.password.push(character);
+                    password.addch(character);
                 }
             }
             _ => (),

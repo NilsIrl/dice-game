@@ -1,5 +1,4 @@
 use serde::Deserialize;
-use sha3::{Digest, Sha3_512};
 
 pub struct User {
     pub username: String,
@@ -12,38 +11,10 @@ pub struct LeaderboardEntry {
     pub score: u64,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::User;
-
-    #[test]
-    fn registering() {
-        let user = User {
-            username: String::from("rodolphe"),
-            password: String::from("verysecurepassword"),
-        };
-        user.register();
-    }
-
-    #[test]
-    fn user_doesnt_exist() {
-        let user = User {
-            username: String::from("somebody"),
-            username: String::from("uselesspassword"),
-        };
-        assert!(user.register().is_ok());
-        // TODO please make sure there are no side effects of user exists
-    }
-
-    #[test]
-    fn user_already_exists() {
-        let user = User {
-            username: String::from("somebody"),
-            username: String::from("uselesspassword"),
-        };
-        assert!(user.register().is_ok());
-        assert!(user.register().is_err());
-    }
+#[derive(Deserialize)]
+pub struct LobbyEntry {
+    pub game_id: i32,
+    pub player1: String,
 }
 
 impl User {
@@ -53,12 +24,26 @@ impl User {
             password: String::new(),
         }
     }
-    pub fn register(&self) -> Result<(), &str> {
-        let mut hasher = Sha3_512::new();
-        hasher.input(&self.password);
-        match reqwest::Client::new()
-            .post(&format!("http://localhost:8000/users/{}", &self.username)) // TODO: make the address a constant
-            .form(&[("password_crypt", &hex::encode(&hasher.result()))])
+}
+
+pub struct ServerConnection {
+    client: reqwest::Client,
+    pub server_addr: String,
+}
+
+impl ServerConnection {
+    pub fn new(server_addr: &str) -> ServerConnection {
+        ServerConnection {
+            client: reqwest::Client::new(),
+            server_addr: format!("http://{}", server_addr),
+        }
+    }
+
+    pub fn register_user(&self, user: &User) -> Result<(), &str> {
+        match self
+            .client
+            .post(&format!("{}/users/{}", self.server_addr, user.username)) // TODO: make the address a constant
+            .form(&[("password", &user.password)])
             .send()
         {
             Ok(response) => {
@@ -72,42 +57,52 @@ impl User {
         }
     }
 
-    pub fn create_game(&self) -> i32 {
-        let mut hasher = Sha3_512::new();
-        hasher.input(&self.password);
-        reqwest::Client::new()
-            .post("http://localhost:8000/games")
-            .form(&[
-                ("username", &self.username),
-                ("password_crypt", &hex::encode(hasher.result())),
-            ])
+    pub fn user_exists(&self, username: &str) -> Result<bool, reqwest::Error> {
+        self.client
+            .get(&format!("{}/users/{}", self.server_addr, username))
+            .send()?
+            .json()
+    }
+
+    pub fn leaderboard(&self, n: usize) -> Result<Vec<LeaderboardEntry>, reqwest::Error> {
+        self.client
+            .get(&format!("{}/users?n={}", self.server_addr, n)) // TODO: use the query method https://docs.rs/reqwest/0.9.22/reqwest/struct.RequestBuilder.html#method.query
+            .send()?
+            .json()
+    }
+
+    pub fn authenticate(&self, user: &User) -> bool {
+        use reqwest::StatusCode;
+        match self
+            .client
+            .get(&format!("{}/auth", self.server_addr))
+            .basic_auth(&user.username, Some(&user.password))
+            .send()
+            .unwrap()
+            .status()
+        {
+            StatusCode::ACCEPTED => true,
+            StatusCode::UNAUTHORIZED => false,
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn create_game(&self, user: &User) -> i32 {
+        self.client
+            .post(&format!("{}/games", self.server_addr))
+            .basic_auth(&user.username, Some(&user.password))
             .send()
             .unwrap()
             .json()
             .unwrap()
     }
 
-    pub fn authenticate(&self) -> bool {
-        let mut hasher = Sha3_512::new();
-        hasher.input(&self.password);
-        reqwest::get(
-            format!(
-                "http://localhost:8000/users/{}?password={}",
-                &self.username,
-                &hex::encode(&hasher.result())
-            )
-            .as_str(),
-        )
-        .unwrap()
-        .json()
-        .unwrap()
-    }
-
-    pub fn user_exists(username: &str) -> Result<bool, reqwest::Error> {
-        reqwest::get(&format!("http://localhost:8000/users/{}", username))?.json()
-    }
-
-    pub fn leaderboard(n: usize) -> Result<Vec<LeaderboardEntry>, reqwest::Error> {
-        reqwest::get(&format!("http://localhost:8000/users?n={}", n))?.json()
+    pub fn get_games(&self) -> Vec<LobbyEntry> {
+        self.client
+            .get(&format!("{}/games?n={}", self.server_addr, 5))
+            .send()
+            .unwrap()
+            .json()
+            .unwrap()
     }
 }

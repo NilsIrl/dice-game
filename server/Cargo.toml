@@ -15,3 +15,4 @@ diesel = { version = "1.0.0", features = ["postgres"] }
 diesel_migrations = "1"
 serde = { version = "1", features = ["derive"] }
 rand = "0.7"
+base64 = "0.11"
