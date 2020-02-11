@@ -8,10 +8,9 @@ edition = "2018"
 lto = true
 
 [dependencies]
-openssl = "*"
-rocket = "0.4"
+rocket = { version = "0.4", default-features = false }
 rocket_contrib = { version = "0.4", default-features = false, features = ["diesel_postgres_pool", "json"] }
-diesel = { version = "1.0.0", features = ["postgres"] }
+diesel = { version = "1", features = ["postgres"] }
 diesel_migrations = "1"
 serde = { version = "1", features = ["derive"] }
 rand = "0.7"

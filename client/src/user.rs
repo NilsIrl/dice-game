@@ -27,14 +27,14 @@ impl User {
 }
 
 pub struct ServerConnection {
-    client: reqwest::Client,
+    client: reqwest::blocking::Client,
     pub server_addr: String,
 }
 
 impl ServerConnection {
     pub fn new(server_addr: &str) -> ServerConnection {
         ServerConnection {
-            client: reqwest::Client::new(),
+            client: reqwest::blocking::Client::new(),
             server_addr: format!("http://{}", server_addr),
         }
     }
@@ -88,6 +88,7 @@ impl ServerConnection {
     }
 
     pub fn create_game(&self, user: &User) -> i32 {
+        // self.client
         self.client
             .post(&format!("{}/games", self.server_addr))
             .basic_auth(&user.username, Some(&user.password))

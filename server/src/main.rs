@@ -1,6 +1,5 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 
-extern crate openssl;
 #[macro_use]
 extern crate rocket;
 #[macro_use]
