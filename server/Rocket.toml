@@ -1,5 +1,5 @@
 [development.databases]
-game = { url = "postgres://postgres@localhost/dice-game" }
+game = { url = "postgres://postgres@/dice_game" }
 
 [production.databases]
-game = { url = "postgres://postgres@postgres/dice-game" }
+game = { url = "postgres://postgres@postgres/dice_game" }
