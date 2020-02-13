@@ -63,22 +63,22 @@ fn main() {
                                     .collect::<Vec<_>>(),
                             );
                         }
+                        Some(3) | None => break,
                         Some(_) => unreachable!(),
-                        None => break,
                     }
                 },
                 Some(1) => leaderboard(&stdscr, &server_connection),
                 Some(2) => credentials = None,
+                Some(3) | None => break,
                 Some(_) => unreachable!(),
-                None => break,
             },
             None => match main_menu(&stdscr, "Main Menu", &DISCONNECTED_CHOICES) {
                 Some(0) => signup(&stdscr, &mut credentials, &server_connection),
                 Some(1) => signin(&stdscr, &mut credentials, &server_connection),
                 Some(2) => leaderboard(&stdscr, &server_connection),
                 Some(3) => about(),
+                Some(4) | None => break,
                 Some(_) => unreachable!(),
-                None => break,
             },
         }
     }
