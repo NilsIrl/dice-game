@@ -15,3 +15,7 @@ diesel_migrations = "1"
 serde = { version = "1", features = ["derive"] }
 rand = "0.7"
 base64 = "0.11"
+
+[build-dependencies]
+diesel_cli = { version = "1", default-features = false, features = ["postgres"] }
+walkdir = "2"
