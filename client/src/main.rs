@@ -25,9 +25,9 @@ fn main() {
     pancurses::curs_set(0);
     pancurses::noecho();
 
-    let disconnected_choices = ["Sign up", "Sign in", "Leaderboard", "About", "Quit"];
-    let loggedin_choices = ["Play", "Leaderboard", "Disconnect", "Quit"];
-    let play_menu = ["Create Game", "Join Game", "Back"];
+    const DISCONNECTED_CHOICES: &[&str] = &["Sign up", "Sign in", "Leaderboard", "About", "Quit"];
+    const LOGGEDIN_CHOICES: &[&str] = &["Play", "Leaderboard", "Disconnect", "Quit"];
+    const PLAY_MENU: &[&str] = &["Create Game", "Join Game", "Back"];
     let mut credentials: Option<user::User> = None;
 
     loop {
@@ -35,10 +35,10 @@ fn main() {
             Some(ref user) => match main_menu(
                 &stdscr,
                 &format!("User: {}", user.username),
-                &loggedin_choices,
+                &LOGGEDIN_CHOICES,
             ) {
                 Some(0) => loop {
-                    match main_menu(&stdscr, "", &play_menu) {
+                    match main_menu(&stdscr, "", &PLAY_MENU) {
                         Some(0) => {
                             let game_id = server_connection.create_game(user);
                         }
@@ -72,7 +72,7 @@ fn main() {
                 Some(_) => unreachable!(),
                 None => break,
             },
-            None => match main_menu(&stdscr, "Main Menu", &disconnected_choices) {
+            None => match main_menu(&stdscr, "Main Menu", &DISCONNECTED_CHOICES) {
                 Some(0) => signup(&stdscr, &mut credentials, &server_connection),
                 Some(1) => signin(&stdscr, &mut credentials, &server_connection),
                 Some(2) => leaderboard(&stdscr, &server_connection),

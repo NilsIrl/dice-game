@@ -45,7 +45,7 @@ impl Round {
     fn new(round_count: i16, rng: &mut rand::rngs::ThreadRng) -> Round {
         let mut round = Round {
             game_id: 0,
-            round_count: round_count,
+            round_count,
             player1_throws: vec![rng.gen_range(1, 7), rng.gen_range(1, 7)],
             player2_throws: vec![rng.gen_range(1, 7), rng.gen_range(1, 7)],
         };
@@ -145,10 +145,10 @@ fn create_game(user: AuthenticatedUser, connection: GameDbConn) -> Json<i32> {
 
     let lobby = LobbyGame {
         player1_id: user.id,
-        player1_score: player1_score,
-        player2_score: player2_score,
-        player1_extra: player1_extra,
-        player2_extra: player2_extra,
+        player1_score,
+        player2_score,
+        player1_extra,
+        player2_extra,
     };
     let game_id = diesel::insert_into(schema::games::table)
         .values(&lobby)
@@ -206,7 +206,8 @@ fn get_round(game: i32, round: i16, db_conn: GameDbConn) -> Result<Json<Round>, 
     }
 }
 
-#[post("/users/<user>", data = "<password>")] // TODO: hash paswsword, maybe use a guard to hash it. This can be done in SQL or in Rust
+// TODO: Allow to update passwords
+#[post("/users/<user>", data = "<password>")]
 fn register_user(
     user: String,
     password: LenientForm<models::Password>,
