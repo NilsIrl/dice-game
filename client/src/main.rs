@@ -35,35 +35,32 @@ fn main() {
             Some(ref user) => match main_menu(
                 &stdscr,
                 &format!("User: {}", user.username),
-                &LOGGEDIN_CHOICES,
+                LOGGEDIN_CHOICES,
             ) {
                 Some(0) => loop {
-                    match main_menu(&stdscr, "", &PLAY_MENU) {
+                    match main_menu(&stdscr, "", PLAY_MENU) {
                         Some(0) => {
                             let game_id = server_connection.create_game(user);
                         }
                         Some(1) => {
                             let games = server_connection.get_games();
+                            // TODO: make it so only games that aren't created by us are returned from the server
                             main_menu(
                                 &stdscr,
                                 "Select game to join",
-                                &games
-                                    .iter()
-                                    .filter_map(|game| {
-                                        // TODO: make it so only games that aren't created by us are returned from the server
-                                        if game.player1 == user.username {
-                                            None
-                                        } else {
-                                            Some(format!(
-                                                "#{} Created by {}",
-                                                game.game_id, game.player1
-                                            ))
-                                        }
-                                    })
-                                    .collect::<Vec<_>>(),
+                                games.into_iter().filter_map(|game| {
+                                    if game.player1 == user.username {
+                                        None
+                                    } else {
+                                        Some(format!(
+                                            "#{} Created by {}",
+                                            game.game_id, game.player1
+                                        ))
+                                    }
+                                }),
                             );
                         }
-                        Some(3) | None => break,
+                        Some(2) | None => break,
                         Some(_) => unreachable!(),
                     }
                 },
@@ -72,7 +69,7 @@ fn main() {
                 Some(3) | None => break,
                 Some(_) => unreachable!(),
             },
-            None => match main_menu(&stdscr, "Main Menu", &DISCONNECTED_CHOICES) {
+            None => match main_menu(&stdscr, "Main Menu", DISCONNECTED_CHOICES) {
                 Some(0) => signup(&stdscr, &mut credentials, &server_connection),
                 Some(1) => signin(&stdscr, &mut credentials, &server_connection),
                 Some(2) => leaderboard(&stdscr, &server_connection),
@@ -146,11 +143,14 @@ fn signin(
 
 fn about() {}
 
-fn main_menu<S: AsRef<str>, T: AsRef<str>>(
+fn main_menu<'a, S: AsRef<str>, C: 'a + AsRef<str>, T>(
     stdscr: &Window,
     title: S,
-    choices: &[T],
-) -> Option<usize> {
+    choices: T,
+) -> Option<usize>
+where
+    T: IntoIterator<Item = &'a C>,
+{
     const LENGTH: i32 = 40;
     const WIDTH: i32 = 20;
     let menu = pancurses::newwin(
@@ -163,14 +163,16 @@ fn main_menu<S: AsRef<str>, T: AsRef<str>>(
     menu.mvaddstr(0, 3, title); // TODO: should title be passed by reference
     let mut chosen = 0;
     loop {
-        for y in 0..choices.len() {
+        let mut length = 0;
+        for (y, choice) in choices.into_iter().enumerate() {
             if y == chosen {
                 menu.attron(A_REVERSE);
             }
-            menu.mvaddstr(y as i32 + 1, 1, &choices[y]);
+            menu.mvaddstr(y as i32 + 1, 1, &choice);
             if y == chosen {
                 menu.attroff(A_REVERSE);
             }
+            length = y + 1;
         }
         menu.refresh();
         match menu.getch().unwrap() {
@@ -181,8 +183,8 @@ fn main_menu<S: AsRef<str>, T: AsRef<str>>(
             }
             Input::KeyDown | Input::Character('j') => {
                 chosen += 1;
-                if chosen >= choices.len() {
-                    chosen = choices.len() - 1;
+                if chosen >= length {
+                    chosen = length - 1;
                 }
             }
             Input::Character('\n') | Input::Character('l') => {
