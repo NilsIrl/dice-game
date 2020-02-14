@@ -98,6 +98,17 @@ impl ServerConnection {
             .unwrap()
     }
 
+    pub fn join_game(&self, user: &User, lobby: &LobbyEntry) {
+        self.client
+            .post(&format!(
+                "{}/games/{}/join",
+                self.server_addr, lobby.game_id
+            ))
+            .basic_auth(&user.username, Some(&user.password))
+            .send()
+            .unwrap();
+    }
+
     pub fn get_games(&self) -> Vec<LobbyEntry> {
         self.client
             .get(&format!("{}/games?n={}", self.server_addr, 5))

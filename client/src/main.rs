@@ -26,7 +26,7 @@ fn main() {
     pancurses::noecho();
 
     const DISCONNECTED_CHOICES: &[&str] = &["Sign up", "Sign in", "Leaderboard", "About", "Quit"];
-    const LOGGEDIN_CHOICES: &[&str] = &["Play", "Leaderboard", "Disconnect", "Quit"];
+    const LOGGEDIN_CHOICES: &[&str] = &["Play", "Leaderboard", "My score", "Disconnect", "Quit"];
     const PLAY_MENU: &[&str] = &["Create Game", "Join Game", "Back"];
     let mut credentials: Option<user::User> = None;
 
@@ -41,35 +41,40 @@ fn main() {
                     match main_menu(&stdscr, "", &PLAY_MENU) {
                         Some(0) => {
                             let game_id = server_connection.create_game(user);
+                            game_loop(game_id, &server_connection);
                         }
                         Some(1) => {
-                            let games = server_connection.get_games();
-                            main_menu(
+                            // TODO: make it so only games that aren't created by us are returned from the server
+                            let games = server_connection
+                                .get_games()
+                                .into_iter()
+                                .filter(|game| game.player1 != user.username)
+                                .collect::<Vec<_>>();
+                            match main_menu(
                                 &stdscr,
                                 "Select game to join",
                                 &games
                                     .iter()
-                                    .filter_map(|game| {
-                                        // TODO: make it so only games that aren't created by us are returned from the server
-                                        if game.player1 == user.username {
-                                            None
-                                        } else {
-                                            Some(format!(
-                                                "#{} Created by {}",
-                                                game.game_id, game.player1
-                                            ))
-                                        }
+                                    .map(|game| {
+                                        format!("#{} Created by {}", game.game_id, game.player1)
                                     })
                                     .collect::<Vec<_>>(),
-                            );
+                            ) {
+                                Some(game_index) => {
+                                    server_connection.join_game(user, &games[game_index]);
+                                    game_loop(games[game_index].game_id, &server_connection);
+                                }
+                                None => break,
+                            }
                         }
-                        Some(3) | None => break,
+                        Some(2) | None => break,
                         Some(_) => unreachable!(),
                     }
                 },
                 Some(1) => leaderboard(&stdscr, &server_connection),
-                Some(2) => credentials = None,
-                Some(3) | None => break,
+                Some(2) => (),
+                Some(3) => credentials = None,
+                Some(4) | None => break,
                 Some(_) => unreachable!(),
             },
             None => match main_menu(&stdscr, "Main Menu", &DISCONNECTED_CHOICES) {
@@ -85,10 +90,13 @@ fn main() {
     pancurses::endwin();
 }
 
+fn game_loop(game_id: i32, server_connection: &user::ServerConnection) {}
+
+const MENU_WIDTH: i32 = 20;
+const MENU_LENGTH: i32 = 40;
+
 fn leaderboard(stdscr: &Window, server_connection: &user::ServerConnection) {
     pancurses::curs_set(0);
-    const MENU_WIDTH: i32 = 20;
-    const MENU_LENGTH: i32 = 40;
     let menu = pancurses::newwin(
         MENU_WIDTH,
         MENU_LENGTH,
@@ -151,13 +159,11 @@ fn main_menu<S: AsRef<str>, T: AsRef<str>>(
     title: S,
     choices: &[T],
 ) -> Option<usize> {
-    const LENGTH: i32 = 40;
-    const WIDTH: i32 = 20;
     let menu = pancurses::newwin(
-        WIDTH,
-        LENGTH,
-        (stdscr.get_max_y() - WIDTH) / 2,
-        (stdscr.get_max_x() - LENGTH) / 2,
+        MENU_WIDTH,
+        MENU_LENGTH,
+        (stdscr.get_max_y() - MENU_WIDTH) / 2,
+        (stdscr.get_max_x() - MENU_LENGTH) / 2,
     );
     menu.draw_box(0, 0);
     menu.mvaddstr(0, 3, title); // TODO: should title be passed by reference
@@ -293,7 +299,7 @@ fn ask_credentials(
                     username.addch(character);
                 } else {
                     userdetail.password.push(character);
-                    password.addch(character);
+                    password.addch('*');
                 }
             }
             _ => (),

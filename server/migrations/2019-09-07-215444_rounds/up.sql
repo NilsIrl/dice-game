@@ -3,5 +3,7 @@ CREATE TABLE rounds (
 	game_id SERIAL REFERENCES games(id) NOT NULL,
 	round_count SMALLINT NOT NULL,
 	player1_throws SMALLINT[3] NOT NULL,
-	player2_throws SMALLINT[3] NOT NULL
+	player2_throws SMALLINT[3] NOT NULL,
+	player1_played BOOLEAN NOT NULL DEFAULT FALSE,
+	player2_played BOOLEAN NOT NULL DEFAULT FALSE
 )

@@ -10,6 +10,12 @@ pub struct LeaderboardEntry {
     pub score: i32,
 }
 
+#[derive(Queryable)]
+pub struct Players {
+    pub player1_id: i32,
+    pub player2_id: Option<i32>,
+}
+
 // TODO: It could be possible to use a type alias since we are just implementing a trait
 pub struct AuthenticatedUser {
     pub id: i32,

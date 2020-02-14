@@ -100,6 +100,9 @@ fn get_games(n: i64, conn: GameDbConn) -> Json<Vec<LobbyEntry>> {
     )
 }
 
+#[get("/games/<game>")]
+fn get_game(game: i32, conn: GameDbConn) -> Json<LobbyEntry> {}
+
 #[post("/games")]
 fn create_game(user: AuthenticatedUser, connection: GameDbConn) -> Json<i32> {
     let mut rng = rand::thread_rng(); // TODO: investigate whether this should be called on each request
@@ -168,7 +171,7 @@ fn create_game(user: AuthenticatedUser, connection: GameDbConn) -> Json<i32> {
 
 #[post("/games/<game>/join")]
 fn join_game(game: i32, user: AuthenticatedUser, db_conn: GameDbConn) {
-    diesel::update(
+    let (player1_id, player2_id, player1_score, player2_score) = diesel::update(
         schema::games::table.filter(
             schema::games::id
                 .eq(game)
@@ -176,15 +179,93 @@ fn join_game(game: i32, user: AuthenticatedUser, db_conn: GameDbConn) {
         ),
     )
     .set(schema::games::player2_id.eq(user.id))
-    .execute(&*db_conn)
+    .returning((
+        schema::games::player1_id,
+        schema::games::player2_id,
+        schema::games::player1_score,
+        schema::games::player2_score,
+    ))
+    .get_result::<(i32, Option<i32>, i16, i16)>(&*db_conn)
     .unwrap();
+    diesel::update(schema::users::table.filter(schema::users::id.eq(player1_id)))
+        .set(schema::users::score.eq(schema::users::score + player1_score as i32))
+        .execute(&*db_conn)
+        .unwrap();
+    diesel::update(schema::users::table.filter(schema::users::id.eq(player2_id.unwrap())))
+        .set(schema::users::score.eq(schema::users::score + player2_score as i32))
+        .execute(&*db_conn)
+        .unwrap();
+}
+
+// TODO: deduplicate get_player1_played and get_player2_played
+#[get("/games/<game>/rounds/<round>/player1_played")]
+fn get_player1_played(game: i32, round: i16, db_conn: GameDbConn) -> Json<bool> {
+    Json(
+        schema::rounds::table
+            .filter(
+                schema::rounds::game_id
+                    .eq(game)
+                    .and(schema::rounds::round_count.eq(round)),
+            )
+            .select(schema::rounds::player1_played)
+            .first(&*db_conn)
+            .unwrap(),
+    )
+}
+
+#[get("/games/<game>/rounds/<round>/player2_played")]
+fn get_player2_played(game: i32, round: i16, db_conn: GameDbConn) -> Json<bool> {
+    Json(
+        schema::rounds::table
+            .filter(
+                schema::rounds::game_id
+                    .eq(game)
+                    .and(schema::rounds::round_count.eq(round)),
+            )
+            .select(schema::rounds::player2_played)
+            .first(&*db_conn)
+            .unwrap(),
+    )
+}
+
+#[post("/games/<game>/rounds/<round>/play")]
+fn play_round(user: AuthenticatedUser, game: i32, round: i16, db_conn: GameDbConn) {
+    let players = schema::games::table
+        .filter(schema::games::id.eq(game))
+        .select((schema::games::player1_id, schema::games::player2_id))
+        .first::<models::Players>(&*db_conn)
+        .unwrap();
+
+    if players.player1_id == user.id {
+        diesel::update(schema::rounds::table)
+            .filter(
+                schema::rounds::game_id
+                    .eq(game)
+                    .and(schema::rounds::round_count.eq(round)),
+            )
+            .set(schema::rounds::player1_played.eq(true))
+            .execute(&*db_conn)
+            .unwrap();
+    } else if players.player2_id.unwrap() == user.id {
+        diesel::update(schema::rounds::table)
+            .filter(
+                schema::rounds::game_id
+                    .eq(game)
+                    .and(schema::rounds::round_count.eq(round)),
+            )
+            .set(schema::rounds::player2_played.eq(true))
+            .execute(&*db_conn)
+            .unwrap();
+    } else {
+        unimplemented!("Player tried playing game it doesn't belong to.");
+    }
 }
 
 #[get("/games/<game>/rounds/<round>")]
 fn get_round(game: i32, round: i16, db_conn: GameDbConn) -> Result<Json<Round>, Status> {
+    // TODO: not hard code this
+    // TODO: maybe use sql for this
     if (0..=4).contains(&round) {
-        // TODO: not hard code this
-        // TODO: maybe use sql for this
         Ok(Json(
             schema::rounds::table
                 .filter(
@@ -271,14 +352,18 @@ fn main() {
         .mount(
             "/",
             routes![
+                create_game,
+                get_games,
+                join_game,
+                get_round,
+                play_round,
+                get_player1_played,
+                get_player2_played,
                 register_user,
                 delete_user,
                 get_users,
                 user_exists,
                 authenticated_user,
-                create_game,
-                get_games,
-                get_round,
             ],
         )
         .attach(GameDbConn::fairing())
