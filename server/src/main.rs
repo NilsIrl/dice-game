@@ -101,7 +101,9 @@ fn get_games(n: i64, conn: GameDbConn) -> Json<Vec<LobbyEntry>> {
 }
 
 #[get("/games/<game>")]
-fn get_game(game: i32, conn: GameDbConn) -> Json<LobbyEntry> {}
+fn get_game(game: i32, conn: GameDbConn) -> Json<LobbyEntry> {
+    unimplemented!();
+}
 
 #[post("/games")]
 fn create_game(user: AuthenticatedUser, connection: GameDbConn) -> Json<i32> {
