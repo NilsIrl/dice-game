@@ -8,5 +8,5 @@ edition = "2018"
 reqwest = { version = "0.10", default-features = false, features = ["rustls-tls", "json", "blocking"] }
 serde = { version = "1", features = ["derive"] }
 pancurses = "0.16"
-sha3 = "0.8"
+sha3 = "0.9"
 clap = "2"
